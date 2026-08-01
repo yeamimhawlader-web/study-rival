@@ -1,0 +1,12 @@
+{
+  "name": "study-rival",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Study Rival: a shared two-person deep-work timer",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
