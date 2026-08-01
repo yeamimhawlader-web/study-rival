@@ -2,14 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Study Rival</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="sound.css">
+  <meta name="description" content="Study Rival - a shared two-person deep-work timer. Lock in with a rival, log every pause, and stay honest together.">
+  <meta name="theme-color" content="#6f4e37">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='34' r='26' fill='%23f7f0e6' stroke='%236f4e37' stroke-width='4'/%3E%3Cpath d='M32 34 32 18M32 34 44 34' stroke='%23c97b52' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M22 6h20M32 6v8' stroke='%236f4e37' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <title>Study Rival</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650;9..144,800&family=Inter:wght@400;600;700;850&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"><link rel="stylesheet" href="sound.css">
 </head>
 <body>
   <main class="shell">
     <header><p class="eyebrow">ACCOUNTABILITY TIMER</p><h1>Study Rival</h1><p>Two people. One timer. Pure focus only.</p></header>
     <div class="app-layout">
       <aside class="sidebar">
-        <section class="join card" id="joinCard"><p class="side-label">TEAM LOBBY</p><div><strong>Choose your team</strong><span id="joinHelp">Choose carefully - your team stays locked.</span></div><div class="join-controls"><input id="name" maxlength="24" placeholder="Your name"><div><button id="joinP1" onclick="join(0)" class="p1">Join Team 1</button><button id="joinP2" onclick="join(1)" class="p2">Join Team 2</button></div></div></section>
+        <section class="join card" id="joinCard"><p class="side-label">TEAM LOBBY</p><div><strong>Choose your team</strong><span id="joinHelp">Choose carefully - your team stays locked.</span></div><div class="join-controls"><input id="name" maxlength="24" placeholder="Your name"><div><button id="joinP1" onclick="join(0)" class="p1">Join Team 1</button><button id="joinP2" onclick="join(1)" class="p2">Join Team 2</button></div><button id="copyInvite" class="invite" onclick="copyInviteLink()">🔗 Copy invite link for your rival</button></div></section>
         <section class="team-panel"><p class="side-label">THE RIVALS</p><article class="player card"><div class="badge p1" id="p1badge">P1</div><div class="player-info"><span class="team-title">TEAM 1</span><h2 id="p1name">Player 1</h2><span class="label">PAUSE PENALTY</span><strong class="points"><span id="p1points">0</span> pts</strong><small>Tasks: <span id="p1done">0</span>/<span id="p1total">0</span></small></div></article><div class="versus">VS</div><article class="player card"><div class="badge p2" id="p2badge">P2</div><div class="player-info"><span class="team-title">TEAM 2</span><h2 id="p2name">Player 2</h2><span class="label">PAUSE PENALTY</span><strong class="points"><span id="p2points">0</span> pts</strong><small>Tasks: <span id="p2done">0</span>/<span id="p2total">0</span></small></div></article></section>
         <section class="tasks-side"><p class="side-label">TASK BOARD</p><article class="card task-card"><h2><i class="dot p1"></i> Team 1 tasks</h2><div class="add"><input id="task0" placeholder="What are you working on?"><button id="add0" class="p1" onclick="addTask(0)">Add</button></div><ul id="tasks0"></ul></article><article class="card task-card"><h2><i class="dot p2"></i> Team 2 tasks</h2><div class="add"><input id="task1" placeholder="What are you working on?"><button id="add1" class="p2" onclick="addTask(1)">Add</button></div><ul id="tasks1"></ul></article></section>
       </aside>
@@ -21,6 +27,17 @@
       </div>
     </div>
   </main>
+  <dialog id="completeDialog"><h2 style="font-family:var(--display)">Session complete!</h2><p id="completeSub">Here's how it went.</p>
+    <div class="recap-grid">
+      <div class="recap-stat"><span class="recap-label">Focused for</span><strong id="recapDuration">0h 0m</strong></div>
+      <div class="recap-stat"><span class="recap-label">Total pauses</span><strong id="recapPauses">0</strong></div>
+    </div>
+    <div class="recap-teams">
+      <div class="recap-team"><span class="team-title">TEAM 1</span><b id="recapP1Name">Player 1</b><small><span id="recapP1Tasks">0/0</span> tasks &middot; <span id="recapP1Points">0</span> pts</small></div>
+      <div class="recap-team"><span class="team-title">TEAM 2</span><b id="recapP2Name">Player 2</b><small><span id="recapP2Tasks">0/0</span> tasks &middot; <span id="recapP2Points">0</span> pts</small></div>
+    </div>
+    <div style="text-align:right;margin-top:14px"><button class="copy" onclick="copyLog()">Copy pause log</button> <button class="start" onclick="closeComplete()">Start a new round</button></div>
+  </dialog>
   <dialog id="welcomeDialog"><h2 id="welcomeTitle">Welcome to Study Rival!</h2><p id="welcomeMsg">You're in. Before the clock starts, take a second to read the ground rules - they're what makes this actually work.</p><div class="rules" style="margin:0 0 14px"><ol><li><b>Teams stay locked.</b> Choose carefully - switching teams is not allowed.</li><li><b>Only the pauser resumes.</b> If you pause, you own the restart.</li><li><b>Timer = pure focus.</b> Stop for any distraction, break, or task-switch.</li><li><b>Radical honesty.</b> The system only works if both people are real.</li><li><b>Log every pause.</b> Note what interrupted you; patterns beat guilt.</li></ol></div><div style="text-align:right"><button class="start" onclick="closeWelcome()">Got it - let's focus</button></div></dialog>
   <dialog id="pauseDialog"><form method="dialog"><h2>Why are you pausing?</h2><p>This pauses the timer for both people and adds <b>5 penalty points</b> to you.</p><textarea id="reason" maxlength="180" placeholder="e.g., Phone notification / food / lost focus"></textarea><div><button value="cancel" class="reset">Cancel</button><button value="default" class="pause" onclick="confirmPause(event)">Pause for both</button></div></form></dialog>
   <div id="toast"></div><script src="client.js"></script>
