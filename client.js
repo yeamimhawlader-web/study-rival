@@ -128,9 +128,24 @@ function updateLive() {
     countdown.classList.remove('show');
     lastCountdownCue = '';
   }
-  if (state.hasStarted && !state.running && !state.countdownUntil && state.remaining === 0 && !finishedSoundPlayed) { arcadeSound('finish'); finishedSoundPlayed = true; }
-  if (state.remaining > 0) finishedSoundPlayed = false;
+  if (state.hasStarted && !state.running && !state.countdownUntil && state.remaining === 0 && !finishedSoundPlayed) { arcadeSound('finish'); finishedSoundPlayed = true; showCompleteRecap(); }
+  if (state.remaining > 0) { finishedSoundPlayed = false; recapShown = false; }
 }
+let recapShown = false;
+function showCompleteRecap() {
+  if (recapShown) return;
+  recapShown = true;
+  $('recapDuration').textContent = fmtLength(state.duration);
+  $('recapPauses').textContent = state.pauses.length;
+  state.players.forEach((p, i) => {
+    $(`recapP${i + 1}Name`).textContent = p.name;
+    $(`recapP${i + 1}Points`).textContent = p.points;
+    const done = state.tasks[i].filter(t => t.done).length;
+    $(`recapP${i + 1}Tasks`).textContent = `${done}/${state.tasks[i].length}`;
+  });
+  $('completeDialog').showModal();
+}
+function closeComplete() { $('completeDialog').close(); recapShown = false; resetSession(); }
 function render() {
   if (!state) return;
   updateLive();
@@ -211,6 +226,7 @@ function maybeShowWelcome() {
 }
 function closeWelcome() { $('welcomeDialog').close(); arcadeSound('click'); }
 function copyLog() { const text = state.pauses.length ? state.pauses.slice().reverse().map(p => `${new Date(p.at).toLocaleString()} - ${p.by}: ${p.reason}`).join('\n') : 'No pauses logged.'; navigator.clipboard.writeText(`Study Rival pause log\n${text}`); toast('Pause log copied.'); }
+function copyInviteLink() { navigator.clipboard.writeText(location.href); arcadeSound('copy'); toast('Invite link copied - send it to your rival.'); }
 document.addEventListener('click', e => { if (e.target.closest('button') && e.target.id !== 'soundToggle') arcadeSound('click'); });
 setInterval(load, 1200);
 setInterval(updateLive, 150);
