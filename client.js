@@ -1,15 +1,18 @@
 const room = new URLSearchParams(location.search).get('room') || 'focus-room';
 const $ = id => document.getElementById(id);
+const memoryStore = {};
+function storageGet(key) { try { return localStorage.getItem(key); } catch { return memoryStore[key] ?? null; } }
+function storageSet(key, value) { try { localStorage.setItem(key, value); } catch { memoryStore[key] = value; } }
 const memberKey = 'study-rival-member-id';
-let memberId = localStorage.getItem(memberKey);
+let memberId = storageGet(memberKey);
 if (!memberId) {
   memberId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-  localStorage.setItem(memberKey, memberId);
+  storageSet(memberKey, memberId);
 }
 let state = null;
-let me = Number(localStorage.getItem(`study-rival-seat-${room}`));
+let me = Number(storageGet(`study-rival-seat-${room}`));
 var timeEditing = false;
-let soundOn = localStorage.getItem('study-rival-sound') !== 'off';
+let soundOn = storageGet('study-rival-sound') !== 'off';
 let audioContext = null;
 let lastCountdownCue = '';
 let finishedSoundPlayed = false;
@@ -55,7 +58,7 @@ function arcadeSound(kind) {
   if (kind === 'music') { beep(392, .09, 'triangle', 0, .05); beep(494, .09, 'triangle', .07, .05); return beep(587, .12, 'triangle', .14, .05); }
   if (kind === 'welcome') { beep(392, .12, 'triangle', 0, .06); beep(523, .12, 'triangle', .1, .06); return beep(659, .2, 'triangle', .2, .07); }
 }
-function toggleSound() { soundOn = !soundOn; localStorage.setItem('study-rival-sound', soundOn ? 'on' : 'off'); if (soundOn) { getAudio(); arcadeSound('fight'); } if (state) render(); }
+function toggleSound() { soundOn = !soundOn; storageSet('study-rival-sound', soundOn ? 'on' : 'off'); if (soundOn) { getAudio(); arcadeSound('fight'); } if (state) render(); }
 
 let welcomeChecked = false;
 async function load() {
@@ -70,7 +73,15 @@ async function act(action, extra = {}) {
   if (me === null) return toast('Join a team first.');
   const r = await fetch('/api/action', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ room, player: me, memberId, action, version: state.version, ...extra }) });
   const out = await r.json();
-  if (!r.ok) return toast(out.error);
+  if (!r.ok) {
+    if (out.error && out.error.startsWith('This seat belongs to someone else')) {
+      me = null;
+      storageSet(`study-rival-seat-${room}`, '');
+      toast('Your session was reset (the server restarted). Please rejoin your team below.');
+      return load();
+    }
+    return toast(out.error);
+  }
   state = out;
   render();
 }
@@ -81,7 +92,7 @@ function join(player) {
     .then(r => r.json().then(x => ({ r, x }))).then(({ r, x }) => {
       if (!r.ok) return toast(x.error);
       me = player;
-      localStorage.setItem(`study-rival-seat-${room}`, player);
+      storageSet(`study-rival-seat-${room}`, player);
       state = x;
       arcadeSound('join');
       render();
@@ -193,10 +204,10 @@ function renderSpotify() {
 }
 function maybeShowWelcome() {
   const key = `study-rival-welcomed-${room}`;
-  if (localStorage.getItem(key)) return;
+  if (storageGet(key)) return;
   $('welcomeDialog').showModal();
   arcadeSound('welcome');
-  localStorage.setItem(key, '1');
+  storageSet(key, '1');
 }
 function closeWelcome() { $('welcomeDialog').close(); arcadeSound('click'); }
 function copyLog() { const text = state.pauses.length ? state.pauses.slice().reverse().map(p => `${new Date(p.at).toLocaleString()} - ${p.by}: ${p.reason}`).join('\n') : 'No pauses logged.'; navigator.clipboard.writeText(`Study Rival pause log\n${text}`); toast('Pause log copied.'); }
