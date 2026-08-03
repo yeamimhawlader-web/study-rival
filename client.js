@@ -10,20 +10,36 @@ if (!memberId) {
   storageSet(memberKey, memberId);
 }
 let state = null;
-let me = Number(storageGet(`study-rival-seat-${room}`));
+const storedSeat = storageGet(`study-rival-seat-${room}`);
+let me = (storedSeat === '0' || storedSeat === '1') ? Number(storedSeat) : null;
 var timeEditing = false;
+var noteEditing = false;
 let soundOn = storageGet('study-rival-sound') !== 'off';
 let audioContext = null;
 let lastCountdownCue = '';
 let finishedSoundPlayed = false;
 let prevPoints = [null, null];
+const AVATARS = ['🦁', '🐯', '🦊', '🐺', '🦉', '🐢', '🐉', '🦅', '🐻', '🦈'];
+let selectedAvatar = storageGet('study-rival-avatar') || AVATARS[0];
+const QUOTES = [
+  "Discipline is choosing between what you want now and what you want most.",
+  "You don't have to be great to start, but you have to start to be great.",
+  "Small daily improvements are the key to staggering long-term results.",
+  "The pain of discipline weighs ounces; the pain of regret weighs tons.",
+  "Focus on being productive instead of busy.",
+  "Your future self is watching you right now through memories.",
+  "Motivation gets you going, discipline keeps you growing.",
+  "One hour of focused work beats four hours of distracted effort.",
+  "Do it now. Sometimes 'later' becomes 'never'.",
+  "You are one focused session away from a completely different mindset."
+];
 
 function spawnDamage(i, amount) {
   const badge = $(`p${i + 1}badge`);
   if (badge) {
     const el = document.createElement('div');
     el.className = 'damage-pop';
-    el.textContent = `+${amount}`;
+    el.textContent = `-${amount}`;
     badge.appendChild(el);
     badge.classList.remove('shake'); void badge.offsetWidth; badge.classList.add('shake');
     setTimeout(() => el.remove(), 1000);
@@ -57,6 +73,7 @@ function arcadeSound(kind) {
   if (kind === 'copy') return beep(950, .07, 'triangle', 0, .045);
   if (kind === 'music') { beep(392, .09, 'triangle', 0, .05); beep(494, .09, 'triangle', .07, .05); return beep(587, .12, 'triangle', .14, .05); }
   if (kind === 'welcome') { beep(392, .12, 'triangle', 0, .06); beep(523, .12, 'triangle', .1, .06); return beep(659, .2, 'triangle', .2, .07); }
+  if (kind === 'victory') { beep(523, .12, 'square', 0, .07); beep(659, .12, 'square', .1, .07); beep(784, .12, 'square', .2, .07); return beep(1047, .3, 'square', .3, .08); }
 }
 function toggleSound() { soundOn = !soundOn; storageSet('study-rival-sound', soundOn ? 'on' : 'off'); if (soundOn) { getAudio(); arcadeSound('fight'); } if (state) render(); }
 
@@ -85,10 +102,19 @@ async function act(action, extra = {}) {
   state = out;
   render();
 }
+function buildAvatarRow() {
+  $('avatarRow').innerHTML = AVATARS.map(a => `<button type="button" class="avatar-btn ${a === selectedAvatar ? 'selected' : ''}" ${me !== null ? 'disabled' : ''} onclick="pickAvatar('${a}')">${a}</button>`).join('');
+}
+function pickAvatar(a) {
+  selectedAvatar = a;
+  storageSet('study-rival-avatar', a);
+  arcadeSound('click');
+  buildAvatarRow();
+}
 function join(player) {
   if (me !== null && me !== player) return toast('Your team is locked for this session.');
   const name = $('name').value.trim() || `Player ${player + 1}`;
-  fetch('/api/action', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ room, player, memberId, action: 'join', name, version: state.version }) })
+  fetch('/api/action', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ room, player, memberId, action: 'join', name, emoji: selectedAvatar, version: state.version }) })
     .then(r => r.json().then(x => ({ r, x }))).then(({ r, x }) => {
       if (!r.ok) return toast(x.error);
       me = player;
@@ -130,8 +156,48 @@ function updateLive() {
   }
   if (state.hasStarted && !state.running && !state.countdownUntil && state.remaining === 0 && !finishedSoundPlayed) { arcadeSound('finish'); finishedSoundPlayed = true; showCompleteRecap(); }
   if (state.remaining > 0) { finishedSoundPlayed = false; recapShown = false; }
+  updateCombo();
+}
+function updateCombo() {
+  const totalElapsed = state.duration - state.remaining;
+  const lastPauseElapsed = state.pauses.length ? state.pauses[0].elapsedAtPause : 0;
+  const comboSeconds = Math.max(0, totalElapsed - lastPauseElapsed);
+  const target = Math.min(state.duration, 900); // bar reads "full" at 15 clean minutes
+  const pct = target ? Math.min(100, (comboSeconds / target) * 100) : 0;
+  $('comboTime').textContent = `${fmt(comboSeconds).replace(/^00:/, '')} clean`;
+  $('comboFill').style.width = `${pct}%`;
+  $('comboBar').classList.toggle('maxed', pct >= 100 && state.running);
+}
+const WIN_BONUS = 20;
+function updateCareerBadge() {
+  const total = Number(storageGet('study-rival-total-score') || 0);
+  const el = $('careerScore');
+  if (el) el.textContent = `🏅 Your career score: ${total}`;
+}
+function spawnConfetti() {
+  const layer = $('confettiLayer');
+  if (!layer) return;
+  layer.innerHTML = '';
+  const colors = ['#6f4e37', '#c97b52', '#7a8f4c', '#e8b94f', '#c9634f'];
+  for (let n = 0; n < 32; n++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.left = `${Math.random() * 100}%`;
+    el.style.background = colors[n % colors.length];
+    el.style.animationDelay = `${Math.random() * 0.4}s`;
+    el.style.transform = `rotate(${Math.random() * 360}deg)`;
+    layer.appendChild(el);
+  }
+  setTimeout(() => { layer.innerHTML = ''; }, 2200);
 }
 let recapShown = false;
+const ACHIEVEMENTS = [
+  { id: 'first', icon: '🎯', label: 'First Focus', check: (p, dur, isFirstEver) => isFirstEver },
+  { id: 'clean', icon: '🧘', label: 'Clean Sweep', check: p => p.points === 0 },
+  { id: 'tasks', icon: '✅', label: 'Task Master', check: (p, dur, first, tasks) => tasks.length > 0 && tasks.every(t => t.done) },
+  { id: 'marathon', icon: '🏃', label: 'Marathon', check: (p, dur) => dur >= 7200 },
+  { id: 'veteran', icon: '🏆', label: 'Veteran (5+ sessions)', check: (p, dur, first, tasks, totalCompleted) => totalCompleted >= 5 },
+];
 function showCompleteRecap() {
   if (recapShown) return;
   recapShown = true;
@@ -139,10 +205,63 @@ function showCompleteRecap() {
   $('recapPauses').textContent = state.pauses.length;
   state.players.forEach((p, i) => {
     $(`recapP${i + 1}Name`).textContent = p.name;
-    $(`recapP${i + 1}Points`).textContent = p.points;
+    $(`recapP${i + 1}Points`).textContent = p.points ? -p.points : 0;
     const done = state.tasks[i].filter(t => t.done).length;
     $(`recapP${i + 1}Tasks`).textContent = `${done}/${state.tasks[i].length}`;
   });
+  // MVP: fewer pauses (points) wins; tie-break on task completion ratio
+  const ratio = i => state.tasks[i].length ? state.tasks[i].filter(t => t.done).length / state.tasks[i].length : 0;
+  $('recapTeam1').classList.remove('mvp'); $('recapTeam2').classList.remove('mvp');
+  document.querySelectorAll('.mvp-tag').forEach(el => el.remove());
+  let mvp = null;
+  if (state.players[0].points !== state.players[1].points) mvp = state.players[0].points < state.players[1].points ? 0 : 1;
+  else if (ratio(0) !== ratio(1)) mvp = ratio(0) > ratio(1) ? 0 : 1;
+  if (mvp !== null) {
+    $(`recapTeam${mvp + 1}`).classList.add('mvp');
+    $(`recapP${mvp + 1}Name`).insertAdjacentHTML('afterend', '<span class="mvp-tag">👑 MVP</span>');
+  }
+  const winBanner = $('winBanner');
+  if (mvp !== null) {
+    winBanner.hidden = false;
+    winBanner.textContent = `🏆 ${state.players[mvp].emoji || ''} ${state.players[mvp].name} WINS!`;
+    arcadeSound('victory');
+    spawnConfetti();
+  } else {
+    winBanner.hidden = false;
+    winBanner.textContent = "🤝 Dead even — no clear winner!";
+  }
+  // Persistent career score: +WIN_BONUS if you were MVP, minus your pauses this session
+  if (me !== null) {
+    const delta = (mvp === me ? WIN_BONUS : 0) - state.players[me].points;
+    const prevTotal = Number(storageGet('study-rival-total-score') || 0);
+    const newTotal = prevTotal + delta;
+    storageSet('study-rival-total-score', newTotal);
+    $('careerDelta').textContent = `${delta >= 0 ? '+' : ''}${delta} this session → 🏅 Career score: ${newTotal}`;
+    updateCareerBadge();
+  } else {
+    $('careerDelta').textContent = '';
+  }
+  // Achievements, evaluated for "me" (the viewer) and persisted per-browser
+  if (me !== null) {
+    const totalCompleted = Number(storageGet('study-rival-sessions-completed') || 0) + 1;
+    storageSet('study-rival-sessions-completed', totalCompleted);
+    const isFirstEver = totalCompleted === 1;
+    const unlockedBefore = JSON.parse(storageGet('study-rival-achievements') || '[]');
+    const earnedNow = ACHIEVEMENTS.filter(a => a.check(state.players[me], state.duration, isFirstEver, state.tasks[me], totalCompleted));
+    const unlockedAfter = Array.from(new Set([...unlockedBefore, ...earnedNow.map(a => a.id)]));
+    storageSet('study-rival-achievements', JSON.stringify(unlockedAfter));
+    if (earnedNow.length) {
+      $('achievementsBox').hidden = false;
+      $('achievementsList').innerHTML = earnedNow.map(a => {
+        const isNew = !unlockedBefore.includes(a.id);
+        return `<div class="ach-chip ${isNew ? 'new' : ''}"><span class="ach-icon">${a.icon}</span>${a.label}${isNew ? '<span class="new-tag">NEW</span>' : ''}</div>`;
+      }).join('');
+    } else {
+      $('achievementsBox').hidden = true;
+    }
+  } else {
+    $('achievementsBox').hidden = true;
+  }
   $('completeDialog').showModal();
 }
 function closeComplete() { $('completeDialog').close(); recapShown = false; resetSession(); }
@@ -158,9 +277,10 @@ function render() {
   $('timeNote').textContent = state.hasStarted ? 'Time is locked while this session is active.' : me === null ? 'Join a team to set the shared time.' : 'Either rival can choose the time before starting.';
   state.players.forEach((p, i) => {
     $(`p${i + 1}name`).textContent = p.name;
+    $(`p${i + 1}emoji`).textContent = p.emoji || (i === 0 ? 'P1' : 'P2');
     if (prevPoints[i] !== null && p.points > prevPoints[i]) spawnDamage(i, p.points - prevPoints[i]);
     prevPoints[i] = p.points;
-    $(`p${i + 1}points`).textContent = p.points;
+    $(`p${i + 1}points`).textContent = p.points ? -p.points : 0;
     const done = state.tasks[i].filter(t => t.done).length;
     $(`p${i + 1}done`).textContent = done;
     $(`p${i + 1}total`).textContent = state.tasks[i].length;
@@ -180,6 +300,9 @@ function render() {
   $('name').disabled = me !== null;
   $('joinHelp').textContent = me !== null ? `You are locked into Team ${me + 1} for this session.` : 'Choose your team carefully - it stays locked for the session.';
   renderSpotify();
+  renderNote();
+  buildAvatarRow();
+  updateCareerBadge();
 }
 function escapeHtml(x) { const d = document.createElement('div'); d.textContent = x; return d.innerHTML; }
 function setPlaylist() {
@@ -216,6 +339,21 @@ function renderSpotify() {
     $('spotifyOpenRow').hidden = false;
     $('playlistNote').textContent = `${escapeHtml(state.spotifySetBy || 'A rival')} shared a Jam link - tap "Open in Spotify" on both phones to join the same live session.`;
   }
+}
+function renderNote() {
+  if (!noteEditing) $('noteText').value = state.note || '';
+  $('noteMeta').textContent = state.noteSetBy ? `Last set by ${state.noteSetBy}` : me === null ? 'Join a team to write a shared note.' : 'Write something for both of you to see.';
+}
+function saveNote() {
+  if (me === null) return toast('Join a team first.');
+  arcadeSound('music');
+  act('setNote', { text: $('noteText').value });
+}
+function randomQuote() {
+  const q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+  $('noteText').value = q;
+  arcadeSound('click');
+  toast('Rolled a quote - click "Save for both" to share it.');
 }
 function maybeShowWelcome() {
   const key = `study-rival-welcomed-${room}`;
