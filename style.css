@@ -16,3 +16,30 @@
 .recap-team{flex:1;background:#faf3e8;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .recap-team b{display:block;font-size:14px;margin:2px 0;font-family:var(--display);font-weight:650}
 .recap-team small{color:var(--muted);font-size:11px}
+.avatar-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.avatar-btn{width:34px;height:34px;padding:0;font-size:17px;border-radius:9px;background:#faf3e8;border:2px solid var(--line);box-shadow:none;color:inherit;display:grid;place-items:center;cursor:pointer}
+.avatar-btn:hover:not(:disabled){background:#f1e6d4}
+.avatar-btn.selected{border-color:var(--p2);background:#fdece2}
+.badge{font-size:17px}
+.combo-row{display:flex;justify-content:space-between;align-items:center;font-size:10px;letter-spacing:1px;font-weight:850;color:var(--muted);margin:0 5px 5px}
+.combo-bar{height:6px;border-radius:5px;background:#ecdfc9;overflow:hidden;margin:0 5px 17px}
+.combo-bar i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#e8b94f,#c9634f);transition:width .3s}
+.combo-bar.maxed i{animation:combo-glow 1.1s ease-in-out infinite}
+@keyframes combo-glow{0%,100%{opacity:1}50%{opacity:.55}}
+.note textarea{margin:4px 0 10px}
+.note-row{display:flex;gap:8px;justify-content:flex-end}
+.note-row .note-save{background:var(--p1);box-shadow:0 4px 0 var(--p1-dark)}
+.recap-team.mvp{border-color:#e8b94f;box-shadow:0 0 0 2px #e8b94f inset}
+.mvp-tag{display:inline-block;margin-left:6px;font-size:11px;color:#a3791f;font-weight:850}
+.ach-list{display:flex;flex-wrap:wrap;gap:8px}
+.ach-chip{display:flex;align-items:center;gap:6px;background:#faf3e8;border:1px solid var(--line);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700}
+.ach-chip .ach-icon{font-size:16px}
+.ach-chip.new{background:#fff6e0;border-color:#e8b94f}
+.ach-chip .new-tag{font-size:9px;letter-spacing:.5px;color:#a3791f;font-weight:850;background:#fff2cc;padding:1px 5px;border-radius:5px}
+dialog{position:relative;overflow:visible}
+.confetti-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;border-radius:14px;z-index:1}
+.confetti-piece{position:absolute;top:-16px;width:8px;height:14px;border-radius:2px;opacity:0;animation:confetti-fall 1.7s ease-in forwards}
+@keyframes confetti-fall{0%{opacity:1;transform:translateY(0) rotate(0deg)}100%{opacity:0;transform:translateY(480px) rotate(600deg)}}
+.win-banner{position:relative;z-index:2;text-align:center;font-family:var(--display);font-weight:800;font-size:23px;margin:2px 0 6px;animation:win-pop .5s ease}
+@keyframes win-pop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+.career-score{font-size:12px;font-weight:800;color:#a3791f;background:#fff6e0;border:1px solid #e8b94f;border-radius:8px;padding:7px 10px;margin:10px 0 0;text-align:center}
