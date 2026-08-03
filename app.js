@@ -5,6 +5,7 @@ const { URL } = require('url');
 
 const root = __dirname;
 const sessions = new Map();
+const AVATARS = ['🦁', '🐯', '🦊', '🐺', '🦉', '🐢', '🐉', '🦅', '🐻', '🦈'];
 
 function freshSession(lockedPlayers) {
   return {
@@ -15,13 +16,15 @@ function freshSession(lockedPlayers) {
     countdownUntil: null,
     pausedBy: null,
     players: lockedPlayers || [
-      { name: 'Player 1', points: 0, joined: false, memberId: null },
-      { name: 'Player 2', points: 0, joined: false, memberId: null }
+      { name: 'Player 1', points: 0, joined: false, memberId: null, emoji: null },
+      { name: 'Player 2', points: 0, joined: false, memberId: null, emoji: null }
     ],
     tasks: [[], []],
     pauses: [],
     spotifyUrl: null,
     spotifySetBy: null,
+    note: '',
+    noteSetBy: null,
     version: 0,
     lastTick: Date.now()
   };
@@ -53,9 +56,10 @@ function publicState(s) {
   return {
     duration: s.duration, remaining: s.remaining, running: s.running,
     hasStarted: s.hasStarted, countdownUntil: s.countdownUntil, pausedBy: s.pausedBy,
-    players: s.players.map(({ name, points, joined }) => ({ name, points, joined })),
+    players: s.players.map(({ name, points, joined, emoji }) => ({ name, points, joined, emoji })),
     tasks: s.tasks, pauses: s.pauses,
     spotifyUrl: s.spotifyUrl, spotifySetBy: s.spotifySetBy,
+    note: s.note, noteSetBy: s.noteSetBy,
     version: s.version
   };
 }
@@ -94,14 +98,15 @@ const server = http.createServer((req, res) => {
           if (!memberId) throw Error('Could not identify this browser. Refresh and try again.');
           const alreadySeated = s.players.findIndex(p => p.memberId === memberId);
           if (alreadySeated !== -1 && alreadySeated !== player) {
-            throw Error('You already joined the other team. Teams stay locked for this session.');
+            throw Error('This browser already joined the other team in this room. Each browser can only be on one team — open the link on a different browser or device to join the other team.');
           }
           if (s.players[player].joined && s.players[player].memberId !== memberId) {
-            throw Error(`${s.players[player].name} already claimed this team. Choose the other team.`);
+            throw Error(`${s.players[player].name} already claimed this team here. Join the other team, or pick a new room name.`);
           }
           s.players[player].name = String(body.name || `Player ${player + 1}`).trim().slice(0, 24) || `Player ${player + 1}`;
           s.players[player].joined = true;
           s.players[player].memberId = memberId;
+          s.players[player].emoji = AVATARS.includes(body.emoji) ? body.emoji : AVATARS[player];
         } else {
           assertMember(s, player, memberId);
           if (action === 'setDuration') {
@@ -133,7 +138,7 @@ const server = http.createServer((req, res) => {
             s.running = false;
             s.pausedBy = player;
             s.players[player].points += 5;
-            s.pauses.unshift({ by: s.players[player].name, reason: reason.slice(0, 180), at: new Date().toISOString() });
+            s.pauses.unshift({ by: s.players[player].name, reason: reason.slice(0, 180), at: new Date().toISOString(), elapsedAtPause: s.duration - s.remaining });
           } else if (action === 'task') {
             const text = String(body.text || '').trim().slice(0, 100);
             if (!text) throw Error('Write a task first.');
@@ -150,6 +155,9 @@ const server = http.createServer((req, res) => {
               s.spotifyUrl = raw;
               s.spotifySetBy = s.players[player].name;
             }
+          } else if (action === 'setNote') {
+            s.note = String(body.text || '').trim().slice(0, 240);
+            s.noteSetBy = s.note ? s.players[player].name : null;
           } else if (action === 'toggleTask') {
             const task = s.tasks[player].find(t => t.id === body.id);
             if (!task) throw Error('You can only update your own tasks.');
