@@ -43,3 +43,24 @@ dialog{position:relative;overflow:visible}
 .win-banner{position:relative;z-index:2;text-align:center;font-family:var(--display);font-weight:800;font-size:23px;margin:2px 0 6px;animation:win-pop .5s ease}
 @keyframes win-pop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
 .career-score{font-size:12px;font-weight:800;color:#a3791f;background:#fff6e0;border:1px solid #e8b94f;border-radius:8px;padding:7px 10px;margin:10px 0 0;text-align:center}
+.badge{width:42px;height:42px;padding:3px}
+.badge.p1{background:#fffaf3;border:3px solid var(--p1);box-shadow:none}
+.badge.p2{background:#fffaf3;border:3px solid var(--p2);box-shadow:none}
+#p1emoji,#p2emoji{display:block;width:100%;height:100%;border-radius:50%;overflow:hidden}
+#p1emoji img,#p2emoji img{width:100%;height:100%;display:block;object-fit:cover}
+.avatar-btn{width:38px;height:38px;font-size:0}
+.avatar-btn img{width:100%;height:100%;border-radius:7px;object-fit:cover;display:block}
+.win-avatar{display:inline-block;width:28px;height:28px;vertical-align:middle;border-radius:50%;overflow:hidden;margin:0 2px}
+.win-avatar img{width:100%;height:100%;display:block;object-fit:cover}
+.quote-display{margin:14px 0 16px;padding:20px 34px;background:linear-gradient(135deg,#faf3e8,#f6ece0);border:1px solid var(--line);border-radius:12px;text-align:center;position:relative}
+.quote-display #quoteText{font-family:var(--display);font-style:italic;font-weight:500;font-size:18px;line-height:1.55;color:var(--ink)}
+.quote-display::before,.quote-display::after{font-family:var(--display);font-size:34px;color:#d9b98a;position:absolute;line-height:1}
+.quote-display::before{content:'\201C';top:6px;left:12px}
+.quote-display::after{content:'\201D';bottom:-6px;right:12px}
+.quote-display .quote-attr{display:block;margin-top:10px;font-family:Inter,sans-serif;font-style:normal;font-size:11px;font-weight:800;letter-spacing:.5px;color:var(--muted)}
+#reminderBanner{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-14px);background:#fffaf3;border:1px solid #e8b94f;box-shadow:0 10px 30px #3b2a1e26;color:var(--ink);padding:13px 20px;border-radius:12px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;z-index:20;opacity:0;pointer-events:none;transition:opacity .35s ease,transform .35s ease;max-width:90vw}
+#reminderBanner.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#reminderBanner .reminder-icon{font-size:20px}
+.preset-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;width:100%;margin:2px 0 8px}
+.preset-btn{background:#faf3e8;color:var(--ink);border:1px solid var(--line);box-shadow:none;font-size:11px;padding:6px 12px}
+.preset-btn:hover:not(:disabled){background:#f1e6d4}

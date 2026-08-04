@@ -5,7 +5,7 @@ const { URL } = require('url');
 
 const root = __dirname;
 const sessions = new Map();
-const AVATARS = ['🦁', '🐯', '🦊', '🐺', '🦉', '🐢', '🐉', '🦅', '🐻', '🦈'];
+const AVATARS = ['strategist', 'bookworm', 'hacker', 'fox', 'angel', 'shrine', 'bard', 'scientist'];
 
 function freshSession(lockedPlayers) {
   return {
@@ -177,7 +177,7 @@ const server = http.createServer((req, res) => {
   const requested = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\//, '');
   const file = path.resolve(root, requested);
   if (!file.startsWith(root) || !fs.existsSync(file)) { res.writeHead(404); return res.end('Not found'); }
-  const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript' };
+  const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.json': 'application/json; charset=utf-8' };
   res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' });
   fs.createReadStream(file).pipe(res);
 });

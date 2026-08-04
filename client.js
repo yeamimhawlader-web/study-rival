@@ -19,7 +19,18 @@ let audioContext = null;
 let lastCountdownCue = '';
 let finishedSoundPlayed = false;
 let prevPoints = [null, null];
-const AVATARS = ['🦁', '🐯', '🦊', '🐺', '🦉', '🐢', '🐉', '🦅', '🐻', '🦈'];
+let prevPausedBy = undefined;
+const AVATARS = ['strategist', 'bookworm', 'hacker', 'fox', 'angel', 'shrine', 'bard', 'scientist'];
+const AVATAR_ICONS = {
+  strategist: { label: 'Strategist', file: 'avatars/strategist.png' },
+  bookworm:   { label: 'Bookworm',   file: 'avatars/bookworm.png' },
+  hacker:     { label: 'Hacker',     file: 'avatars/hacker.png' },
+  fox:        { label: 'Fox Spirit', file: 'avatars/fox.png' },
+  angel:      { label: 'Angel',      file: 'avatars/angel.png' },
+  shrine:     { label: 'Shrine Maiden', file: 'avatars/shrine.png' },
+  bard:       { label: 'Bard',       file: 'avatars/bard.png' },
+  scientist:  { label: 'Scientist',  file: 'avatars/scientist.png' },
+};
 let selectedAvatar = storageGet('study-rival-avatar') || AVATARS[0];
 const QUOTES = [
   "Discipline is choosing between what you want now and what you want most.",
@@ -51,6 +62,7 @@ function spawnDamage(i, amount) {
     setTimeout(() => pointsEl.classList.remove('points-hit'), 600);
   }
   arcadeSound('hit');
+  vibrate(60);
 }
 if (![0, 1].includes(me)) me = null;
 const fmt = s => [Math.floor(s / 3600), Math.floor(s % 3600 / 60), s % 60].map(x => String(x).padStart(2, '0')).join(':');
@@ -74,14 +86,41 @@ function arcadeSound(kind) {
   if (kind === 'music') { beep(392, .09, 'triangle', 0, .05); beep(494, .09, 'triangle', .07, .05); return beep(587, .12, 'triangle', .14, .05); }
   if (kind === 'welcome') { beep(392, .12, 'triangle', 0, .06); beep(523, .12, 'triangle', .1, .06); return beep(659, .2, 'triangle', .2, .07); }
   if (kind === 'victory') { beep(523, .12, 'square', 0, .07); beep(659, .12, 'square', .1, .07); beep(784, .12, 'square', .2, .07); return beep(1047, .3, 'square', .3, .08); }
+  if (kind === 'reminder') { beep(660, .16, 'sine', 0, .05); return beep(880, .22, 'sine', .18, .05); }
 }
+let notifyOn = storageGet('study-rival-notify') === 'on';
+function updateNotifyButton() { $('notifyToggle').textContent = notifyOn ? '🔔 Notify: On' : '🔔 Notify: Off'; }
+async function toggleNotify() {
+  if (!('Notification' in window)) { toast('Notifications are not supported in this browser.'); return; }
+  if (!notifyOn) {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast('Notifications were blocked - enable them in your browser settings to use this.'); return; }
+    notifyOn = true;
+    toast('Notifications on - you\'ll get alerts even if you switch tabs.');
+  } else {
+    notifyOn = false;
+    toast('Notifications off.');
+  }
+  storageSet('study-rival-notify', notifyOn ? 'on' : 'off');
+  updateNotifyButton();
+}
+function notify(title, body) {
+  if (!notifyOn || !('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!document.hidden) return; // don't duplicate what's already visible on-screen
+  try { new Notification(title, { body, icon: 'icon-192.png' }); } catch { /* ignore */ }
+}
+function vibrate(pattern) { if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch { /* ignore */ } } }
 function toggleSound() { soundOn = !soundOn; storageSet('study-rival-sound', soundOn ? 'on' : 'off'); if (soundOn) { getAudio(); arcadeSound('fight'); } if (state) render(); }
 
 let welcomeChecked = false;
+let appliedVersion = -1;
 async function load() {
   try {
     const r = await fetch(`/api/state?room=${encodeURIComponent(room)}`);
-    state = await r.json();
+    const data = await r.json();
+    if (data.version !== 0 && data.version < appliedVersion) return; // a newer response already landed; ignore this stale one (version 0 always means a fresh reset, so let that through)
+    appliedVersion = data.version;
+    state = data;
     render();
     if (!welcomeChecked) { welcomeChecked = true; maybeShowWelcome(); }
   } catch { toast('Could not reach the shared timer server.'); }
@@ -100,10 +139,11 @@ async function act(action, extra = {}) {
     return toast(out.error);
   }
   state = out;
+  appliedVersion = out.version;
   render();
 }
 function buildAvatarRow() {
-  $('avatarRow').innerHTML = AVATARS.map(a => `<button type="button" class="avatar-btn ${a === selectedAvatar ? 'selected' : ''}" ${me !== null ? 'disabled' : ''} onclick="pickAvatar('${a}')">${a}</button>`).join('');
+  $('avatarRow').innerHTML = AVATARS.map(a => `<button type="button" class="avatar-btn ${a === selectedAvatar ? 'selected' : ''}" ${me !== null ? 'disabled' : ''} onclick="pickAvatar('${a}')" title="${AVATAR_ICONS[a].label}"><img src="${AVATAR_ICONS[a].file}" alt="${AVATAR_ICONS[a].label}" loading="lazy"></button>`).join('');
 }
 function pickAvatar(a) {
   selectedAvatar = a;
@@ -125,6 +165,12 @@ function join(player) {
       toast(`You joined Team ${player + 1}. Your team is now locked.`);
       maybeShowWelcome();
     });
+}
+function setPreset(minutes) {
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  $('hours').value = h; $('minutes').value = m;
+  arcadeSound('set');
+  act('setDuration', { hours: h, minutes: m });
 }
 function setTime() {
   const hours = Number($('hours').value || 0);
@@ -148,7 +194,10 @@ function updateLive() {
     const cue = left > 900 ? String(Math.max(1, Math.ceil((left - 900) / 1000))) : 'FIGHT!';
     countdown.textContent = cue;
     countdown.classList.add('show');
-    if (cue !== lastCountdownCue) arcadeSound(cue === 'FIGHT!' ? 'fight' : 'count');
+    if (cue !== lastCountdownCue) {
+      arcadeSound(cue === 'FIGHT!' ? 'fight' : 'count');
+      if (cue === 'FIGHT!') { notify('Focus time! 🥊', 'The session just started.'); vibrate([80, 40, 80]); }
+    }
     lastCountdownCue = cue;
   } else {
     countdown.classList.remove('show');
@@ -157,6 +206,36 @@ function updateLive() {
   if (state.hasStarted && !state.running && !state.countdownUntil && state.remaining === 0 && !finishedSoundPlayed) { arcadeSound('finish'); finishedSoundPlayed = true; showCompleteRecap(); }
   if (state.remaining > 0) { finishedSoundPlayed = false; recapShown = false; }
   updateCombo();
+  checkWellnessReminder();
+}
+const WELLNESS_TIPS = [
+  { icon: '💧', text: "Drink some water — you've earned it." },
+  { icon: '🧍', text: 'Stand up and stretch for a few seconds.' },
+  { icon: '👀', text: 'Look at something 20 feet away for 20 seconds — rest your eyes.' },
+  { icon: '🌬️', text: 'Take three slow, deep breaths.' },
+  { icon: '🪑', text: 'Check your posture and roll your shoulders back.' },
+  { icon: '🙌', text: "Nice focus streak — shake out your hands and wrists." },
+];
+let reminderTimeout = null;
+function showReminder(tip) {
+  const el = $('reminderBanner');
+  el.innerHTML = `<span class="reminder-icon">${tip.icon}</span><span>${tip.text}</span>`;
+  el.classList.add('show');
+  arcadeSound('reminder');
+  notify(`${tip.icon} Quick break`, tip.text);
+  vibrate(50);
+  clearTimeout(reminderTimeout);
+  reminderTimeout = setTimeout(() => el.classList.remove('show'), 6000);
+}
+let lastReminderMark = 0;
+function checkWellnessReminder() {
+  if (!state.hasStarted) { lastReminderMark = 0; return; }
+  const totalElapsed = state.duration - state.remaining;
+  const mark = Math.floor(totalElapsed / 1800); // every 30 minutes of actual focus time
+  if (mark > lastReminderMark) {
+    lastReminderMark = mark;
+    showReminder(WELLNESS_TIPS[Math.floor(Math.random() * WELLNESS_TIPS.length)]);
+  }
 }
 function updateCombo() {
   const totalElapsed = state.duration - state.remaining;
@@ -223,12 +302,17 @@ function showCompleteRecap() {
   const winBanner = $('winBanner');
   if (mvp !== null) {
     winBanner.hidden = false;
-    winBanner.textContent = `🏆 ${state.players[mvp].emoji || ''} ${state.players[mvp].name} WINS!`;
+    const icon = AVATAR_ICONS[state.players[mvp].emoji];
+    winBanner.innerHTML = `🏆 ${icon ? `<span class="win-avatar"><img src="${icon.file}" alt=""></span>` : ''} ${escapeHtml(state.players[mvp].name)} WINS!`;
     arcadeSound('victory');
     spawnConfetti();
+    vibrate([100, 60, 100, 60, 200]);
+    notify('🏆 Session complete!', `${state.players[mvp].name} wins this round.`);
   } else {
     winBanner.hidden = false;
     winBanner.textContent = "🤝 Dead even — no clear winner!";
+    vibrate(150);
+    notify('Session complete!', 'Dead even — no clear winner this round.');
   }
   // Persistent career score: +WIN_BONUS if you were MVP, minus your pauses this session
   if (me !== null) {
@@ -265,6 +349,108 @@ function showCompleteRecap() {
   $('completeDialog').showModal();
 }
 function closeComplete() { $('completeDialog').close(); recapShown = false; resetSession(); }
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+async function loadImg(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+function drawCircleImg(ctx, img, cx, cy, r) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+  if (img) ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+  else { ctx.fillStyle = '#e4d6c3'; ctx.fill(); }
+  ctx.restore();
+}
+async function downloadRecapImage() {
+  try { await document.fonts.ready; } catch { /* ignore */ }
+  const W = 700, H = 480;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, '#faf3e8'); grad.addColorStop(1, '#f6ece0');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#e4d6c3'; ctx.lineWidth = 2; roundRect(ctx, 8, 8, W - 16, H - 16, 16); ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#3b2a1e';
+  ctx.font = "700 32px Fraunces, Georgia, serif";
+  ctx.fillText('Study Rival', W / 2, 54);
+  ctx.font = "700 11px Inter, sans-serif";
+  ctx.fillStyle = '#9c8873';
+  ctx.fillText('SESSION COMPLETE', W / 2, 74);
+
+  const ratio = i => state.tasks[i].length ? state.tasks[i].filter(t => t.done).length / state.tasks[i].length : 0;
+  let mvp = null;
+  if (state.players[0].points !== state.players[1].points) mvp = state.players[0].points < state.players[1].points ? 0 : 1;
+  else if (ratio(0) !== ratio(1)) mvp = ratio(0) > ratio(1) ? 0 : 1;
+
+  ctx.font = "italic 700 23px Fraunces, Georgia, serif";
+  ctx.fillStyle = '#3b2a1e';
+  ctx.fillText(mvp !== null ? `\uD83C\uDFC6 ${state.players[mvp].name} wins!` : '\uD83E\uDD1D Dead even!', W / 2, 108);
+
+  ctx.font = "700 11px Inter, sans-serif"; ctx.fillStyle = '#9c8873';
+  ctx.fillText('FOCUSED FOR', W / 2 - 110, 138);
+  ctx.fillText('TOTAL PAUSES', W / 2 + 110, 138);
+  ctx.font = "700 22px Fraunces, Georgia, serif"; ctx.fillStyle = '#3b2a1e';
+  ctx.fillText(fmtLength(state.duration), W / 2 - 110, 162);
+  ctx.fillText(String(state.pauses.length), W / 2 + 110, 162);
+
+  const [img0, img1] = await Promise.all([
+    state.players[0].emoji && AVATAR_ICONS[state.players[0].emoji] ? loadImg(AVATAR_ICONS[state.players[0].emoji].file) : null,
+    state.players[1].emoji && AVATAR_ICONS[state.players[1].emoji] ? loadImg(AVATAR_ICONS[state.players[1].emoji].file) : null,
+  ]);
+
+  [0, 1].forEach((i, idx) => {
+    const x = idx === 0 ? 30 : W / 2 + 10;
+    const cardW = W / 2 - 40;
+    const isMvp = i === mvp;
+    ctx.fillStyle = isMvp ? '#fff6e0' : '#faf3e8';
+    ctx.strokeStyle = isMvp ? '#e8b94f' : '#e4d6c3';
+    ctx.lineWidth = isMvp ? 2 : 1;
+    roundRect(ctx, x, 190, cardW, 220, 14); ctx.fill(); ctx.stroke();
+    const cx = x + cardW / 2;
+    drawCircleImg(ctx, idx === 0 ? img0 : img1, cx, 250, 34);
+    ctx.strokeStyle = isMvp ? '#e8b94f' : (idx === 0 ? '#6f4e37' : '#c97b52');
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, 250, 36, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#3b2a1e';
+    ctx.font = "700 17px Fraunces, Georgia, serif";
+    ctx.fillText(state.players[i].name + (isMvp ? ' \uD83D\uDC51' : ''), cx, 310);
+    ctx.font = "700 22px Inter, sans-serif"; ctx.fillStyle = '#c97b52';
+    ctx.fillText(`${state.players[i].points ? -state.players[i].points : 0} pts`, cx, 340);
+    const done = state.tasks[i].filter(t => t.done).length;
+    ctx.font = "600 12px Inter, sans-serif"; ctx.fillStyle = '#8a7361';
+    ctx.fillText(`${done}/${state.tasks[i].length} tasks completed`, cx, 362);
+  });
+
+  ctx.font = "500 11px Inter, sans-serif"; ctx.fillStyle = '#a8927c';
+  ctx.fillText(new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }), W / 2, H - 22);
+
+  const link = document.createElement('a');
+  link.download = `study-rival-${new Date().toISOString().slice(0, 10)}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  arcadeSound('copy');
+}
 function render() {
   if (!state) return;
   updateLive();
@@ -273,11 +459,11 @@ function render() {
   $('substatus').textContent = isCounting ? '3 - 2 - 1 - FIGHT!' : state.running ? 'Pure-focus time only' : `Shared timer - ${fmtLength(state.duration)}`;
   if (!timeEditing) { $('hours').value = Math.floor(state.duration / 3600); $('minutes').value = Math.floor(state.duration % 3600 / 60); }
   const timeLocked = state.hasStarted || state.running || isCounting || me === null;
-  ['hours', 'minutes', 'setTime'].forEach(id => $(id).disabled = timeLocked);
+  ['hours', 'minutes', 'setTime', 'preset25', 'preset50', 'preset90', 'preset120'].forEach(id => $(id).disabled = timeLocked);
   $('timeNote').textContent = state.hasStarted ? 'Time is locked while this session is active.' : me === null ? 'Join a team to set the shared time.' : 'Either rival can choose the time before starting.';
   state.players.forEach((p, i) => {
     $(`p${i + 1}name`).textContent = p.name;
-    $(`p${i + 1}emoji`).textContent = p.emoji || (i === 0 ? 'P1' : 'P2');
+    $(`p${i + 1}emoji`).innerHTML = (p.emoji && AVATAR_ICONS[p.emoji]) ? `<img src="${AVATAR_ICONS[p.emoji].file}" alt="">` : (i === 0 ? 'P1' : 'P2');
     if (prevPoints[i] !== null && p.points > prevPoints[i]) spawnDamage(i, p.points - prevPoints[i]);
     prevPoints[i] = p.points;
     $(`p${i + 1}points`).textContent = p.points ? -p.points : 0;
@@ -290,6 +476,10 @@ function render() {
     $(`tasks${i}`).innerHTML = state.tasks[i].map(t => `<li class="task ${t.done ? 'done' : ''}"><input type="checkbox" ${t.done ? 'checked' : ''} ${canEdit ? '' : 'disabled'} onchange="toggleTask(${i},'${t.id}')"><span>${escapeHtml(t.text)}</span></li>`).join('') || '<li class="task"><span>No tasks yet.</span></li>';
   });
   $('owner').textContent = state.pausedBy !== null && !state.running ? `Paused by ${state.players[state.pausedBy].name}. Only they can resume.` : '';
+  if (state.pausedBy !== null && state.pausedBy !== prevPausedBy && state.pausedBy !== me) {
+    notify('⏸️ Timer paused', `${state.players[state.pausedBy].name} paused the session.`);
+  }
+  prevPausedBy = state.pausedBy;
   $('start').textContent = isCounting ? 'Get ready...' : state.running ? 'Focusing...' : state.pausedBy !== null ? 'Resume focus' : 'Start focus';
   $('start').disabled = state.running || isCounting || me === null || (state.pausedBy !== null && state.pausedBy !== me);
   $('pause').disabled = !state.running || me === null;
@@ -303,6 +493,7 @@ function render() {
   renderNote();
   buildAvatarRow();
   updateCareerBadge();
+  updateNotifyButton();
 }
 function escapeHtml(x) { const d = document.createElement('div'); d.textContent = x; return d.innerHTML; }
 function setPlaylist() {
@@ -342,6 +533,14 @@ function renderSpotify() {
 }
 function renderNote() {
   if (!noteEditing) $('noteText').value = state.note || '';
+  if (state.note) {
+    $('quoteText').textContent = state.note;
+    $('quoteDisplay').querySelector('.quote-attr')?.remove();
+    if (state.noteSetBy) $('quoteDisplay').insertAdjacentHTML('beforeend', `<span class="quote-attr">— ${escapeHtml(state.noteSetBy)}</span>`);
+  } else {
+    $('quoteText').textContent = me === null ? 'Join a team, then write something here for both of you to see.' : 'No note yet — write one below, or roll a random quote.';
+    $('quoteDisplay').querySelector('.quote-attr')?.remove();
+  }
   $('noteMeta').textContent = state.noteSetBy ? `Last set by ${state.noteSetBy}` : me === null ? 'Join a team to write a shared note.' : 'Write something for both of you to see.';
 }
 function saveNote() {
@@ -352,6 +551,8 @@ function saveNote() {
 function randomQuote() {
   const q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
   $('noteText').value = q;
+  $('noteText').focus();
+  noteEditing = true;
   arcadeSound('click');
   toast('Rolled a quote - click "Save for both" to share it.');
 }

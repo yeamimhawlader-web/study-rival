@@ -35,6 +35,10 @@ Open `http://localhost:3000/?room=your-session-name`. Both people must use the i
 - Either rival can paste a Spotify playlist/track/Jam link that's shared and shown for both browsers
 - A welcome dialog with the focus rules pops up the first time a browser opens a room
 - Arcade-style sound effects for joining, setting the timer, tasks, pausing, and resetting (toggle with the Sound button)
+- Pick an emoji avatar before joining
+- A shared motivation board - write a note or roll a random quote, visible to both of you
+- A focus combo meter that fills up while unpaused and resets the moment either of you pauses
+- A session-complete recap screen with an MVP crown and achievement badges (achievements are tracked per browser via localStorage, so they build up across sessions)
 - The pause log can be copied at the end
 
 Session data is stored in the running server's memory, so restarting the server starts a fresh session.
