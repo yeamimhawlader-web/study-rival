@@ -218,14 +218,18 @@ const WELLNESS_TIPS = [
 ];
 let reminderTimeout = null;
 function showReminder(tip) {
-  const el = $('reminderBanner');
-  el.innerHTML = `<span class="reminder-icon">${tip.icon}</span><span>${tip.text}</span>`;
-  el.classList.add('show');
+  $('reminderIcon').textContent = tip.icon;
+  $('reminderText').textContent = tip.text;
+  $('reminderOverlay').classList.add('show');
   arcadeSound('reminder');
   notify(`${tip.icon} Quick break`, tip.text);
-  vibrate(50);
+  vibrate([50, 40, 50, 40, 90]);
   clearTimeout(reminderTimeout);
-  reminderTimeout = setTimeout(() => el.classList.remove('show'), 6000);
+  reminderTimeout = setTimeout(dismissReminder, 9000);
+}
+function dismissReminder() {
+  $('reminderOverlay').classList.remove('show');
+  clearTimeout(reminderTimeout);
 }
 let lastReminderMark = 0;
 function checkWellnessReminder() {
@@ -252,6 +256,9 @@ function updateCareerBadge() {
   const total = Number(storageGet('study-rival-total-score') || 0);
   const el = $('careerScore');
   if (el) el.textContent = `🏅 Your career score: ${total}`;
+  const sessions = Number(storageGet('study-rival-sessions-completed') || 0);
+  const sEl = $('sessionsBadge');
+  if (sEl) sEl.textContent = `🔥 ${sessions} session${sessions === 1 ? '' : 's'} completed`;
 }
 function spawnConfetti() {
   const layer = $('confettiLayer');
@@ -494,6 +501,7 @@ function render() {
   buildAvatarRow();
   updateCareerBadge();
   updateNotifyButton();
+  document.body.classList.toggle('focus-mode', state.running);
 }
 function escapeHtml(x) { const d = document.createElement('div'); d.textContent = x; return d.innerHTML; }
 function setPlaylist() {
